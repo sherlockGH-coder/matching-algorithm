@@ -53,15 +53,56 @@ def add_course_type(data):
         - 添加课程类型（实验/理论）
         - 复制理论和实践学时都大于0的记录
         - 添加情况说明（必选/任选其一）
+        - 删除特定条件下的重复课程记录
     """
+    # 将任课教师列中的多个教师记录拆分成多行
     data['任课教师'] = data['任课教师'].apply(lambda x: x.split(','))
     data = data.explode('任课教师')
+    
+    # 根据实践学时和理论学时添加并判断课程类型
     data['课程类型'] = data.apply(lambda x: '实验' if (x['实践学时'] > 0) & (x['理论学时'] == 0 or pd.isna(x['理论学时'])) else '理论', axis=1)
+    
+    # 将同时有理论学时和实践学时的课程复制一份
     data_experiment = data[(data['理论学时'] > 0) & (data['实践学时'] > 0)].copy()
     data_experiment['课程类型'] = '实验'
     data = pd.concat([data, data_experiment])
+    
+    # 按课程名称和课程类型排序
     data = data.sort_values(by=['课程名称', '课程类型'])
+    
+    # 添加情况说明
     data['情况说明'] = data.apply(lambda x: '必选' if ((data['课程名称'] == x['课程名称']) & (data['课程类型'] == x['课程类型'])).sum() == 1 or (data['任课教师'] == x['任课教师']).sum() == 1 else '任选其一', axis=1)
+    
+    # 对每个任课教师进行处理
+    teachers_to_remove = []
+    for teacher in data['任课教师'].unique():
+        # 获取该教师的所有课程
+        teacher_courses = data[data['任课教师'] == teacher]
+        
+        # 如果该教师有必选课程
+        if '必选' in teacher_courses['情况说明'].values:
+            # 获取该教师的所有任选课程
+            optional_courses = teacher_courses[teacher_courses['情况说明'] == '任选其一']
+            
+            for _, course in optional_courses.iterrows():
+                # 查找相同课程名称和类型的其他教师的必选课程
+                same_course = data[
+                    (data['课程名称'] == course['课程名称']) & 
+                    (data['课程类型'] == course['课程类型']) & 
+                    (data['任课教师'] != teacher) & 
+                    (data['情况说明'] == '必选')
+                ]
+                
+                # 如果找到其他教师的必选课程，标记当前教师的这门课程需要删除
+                if not same_course.empty:
+                    teachers_to_remove.append((teacher, course['课程名称'], course['课程类型']))
+    
+    # 删除标记的记录
+    for teacher, course_name, course_type in teachers_to_remove:
+        data = data[~((data['任课教师'] == teacher) & 
+                     (data['课程名称'] == course_name) & 
+                     (data['课程类型'] == course_type))]
+    
     return data
 
 
@@ -134,6 +175,7 @@ def get_data(course_file, supervisor_file):
     else:
         raise ValueError('输入数据类型错误')
     
+    # 过滤课程数据，移除不需要匹配的课程任务
     filter_data = filter_course_data(course_data)
     filter_data = add_course_type(filter_data)
     supervisor_course_data = get_supervisor_course_data(supervisor_data, filter_data)
