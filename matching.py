@@ -120,10 +120,10 @@ def matching_task(course_file_path, supervisor_file_path):
 
 
 if __name__ == "__main__":
-    course_file_path = './2024春开课任务.xls'
-    supervisor_file_path = './督导名单.xlsx'
+    course_file_path = '../test-algorithm/2024春开课任务.xls'
+    supervisor_file_path = '../test-algorithm/督导名单.xlsx'
     output_data = matching_task(course_file_path, supervisor_file_path)
     if output_data is not None:
-        output_data.to_excel('./2024春开课任务_new.xlsx', index=False)
-        print('匹配结果已保存到2024春开课任务_new.xlsx')
+        output_data.to_excel('../test-algorithm/2024春开课任务_new_v1.xlsx', index=False)
+        print('匹配结果已保存到2024春开课任务_new_v1.xlsx')
 

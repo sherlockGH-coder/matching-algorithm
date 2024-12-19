@@ -106,7 +106,7 @@ def add_course_type(data):
     return data
 
 
-def get_supervisor_course_data(supervisor_data, filter_data):
+def get_supervisor_course_data(supervisor_data, course_data):
     """
     获取督导课程信息。
 
@@ -122,9 +122,11 @@ def get_supervisor_course_data(supervisor_data, filter_data):
         - 合并开课校区和课表信息
         - 为没有课程的督导添加空记录
     """
-    supervisor_course_data = filter_data[filter_data['任课教师'].isin(supervisor_data['姓名'])]
+    # 匹配督导姓名与课程数据
+    supervisor_course_data = course_data[course_data['任课教师'].isin(supervisor_data['姓名'])]
+    # 对筛选得到的数据按“任课教师”分组，并对“开课校区”和“课表信息”列进行聚合处理，在聚合过程种，“开课校区”列的值会去重并用逗号连接，“课表信息”列的值会直接用逗号连接
     supervisor_course_data = supervisor_course_data.groupby('任课教师').agg({'开课校区': lambda x: ','.join(set(x.dropna().astype(str))), '课表信息': lambda x: ','.join(x.dropna().astype(str))}).reset_index()
-    
+    # 函数遍历supervisor_data中的每一行，检查每个督导是否在 supervisor_course_data中。如果某个督导不在supervisor_course_data 中，函数会为该督导添加一条空记录，记录中开课校区和课表信息列为空字符串或空字典。
     for index, row in supervisor_data.iterrows():
         if row['姓名'] not in supervisor_course_data['任课教师'].values:
             new_row = {'任课教师': row['姓名'], '开课校区': '', '课表信息': '{}'}
@@ -177,10 +179,14 @@ def get_data(course_file, supervisor_file):
     
     # 过滤课程数据，移除不需要匹配的课程任务
     filter_data = filter_course_data(course_data)
+    # 添加课程类型并处理数据
     filter_data = add_course_type(filter_data)
-    supervisor_course_data = get_supervisor_course_data(supervisor_data, filter_data)
+    # 获取督导课程信息
+    supervisor_course_data = get_supervisor_course_data(supervisor_data, course_data)
+    # 获取听课任务数据
     task_data = get_task_data(filter_data)
     
+    # 创建索引映射
     supervisor_index_map = {name: idx for idx, name in enumerate(supervisor_course_data['任课教师'])}
     task_index_map = {tuple(row): idx for idx, row in task_data[['课程名称', '课程类型', '情况说明']].iterrows()}
 
@@ -196,4 +202,6 @@ if __name__ == "__main__":
     supervisor_file_path = './督导名单.xlsx'
     supervisor_course_data, task_data, fliter_data = get_data(course_file_path, supervisor_file_path)
     print(supervisor_course_data.head(1))
+    supervisor_course_data.to_excel('../test-algorithm/supervisor_course_data.xlsx', index=False)
+    task_data.to_excel('../test-algorithm/task_data.xlsx', index=False)
     
