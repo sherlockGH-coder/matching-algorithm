@@ -198,8 +198,8 @@ def get_data(course_file, supervisor_file):
 
 
 if __name__ == "__main__":
-    course_file_path = './2024春开课任务.xls'
-    supervisor_file_path = './督导名单.xlsx'
+    course_file_path = '../test-algorithm/2024春开课任务.xls'
+    supervisor_file_path = '../test-algorithm/督导名单.xlsx'
     supervisor_course_data, task_data, fliter_data = get_data(course_file_path, supervisor_file_path)
     print(supervisor_course_data.head(1))
     supervisor_course_data.to_excel('../test-algorithm/supervisor_course_data.xlsx', index=False)

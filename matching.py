@@ -124,6 +124,6 @@ if __name__ == "__main__":
     supervisor_file_path = '../test-algorithm/督导名单.xlsx'
     output_data = matching_task(course_file_path, supervisor_file_path)
     if output_data is not None:
-        output_data.to_excel('../test-algorithm/2024春开课任务_new_v1.xlsx', index=False)
-        print('匹配结果已保存到2024春开课任务_new_v1.xlsx')
+        output_data.to_excel('../test-algorithm/2024春开课任务_result.xlsx', index=False)
+        print('匹配结果已保存到2024春开课任务_result.xlsx')
 

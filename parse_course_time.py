@@ -18,6 +18,7 @@ class TimeParser:
             raw_course_data (pandas.DataFrame): 包含课程数据的DataFrame。
             time_column (str): 包含时间信息的列名。
         """
+        # 获取课程时间信息列表
         self.course_times = raw_course_data[time_column].tolist()
 
     def parse_weeks(self, week_str):
@@ -315,11 +316,19 @@ class TimeMatrix:
 
 
 if __name__ == '__main__':
-    task_data = pd.read_excel('听课任务_v2.xlsx')
-    supervisor_course_data = pd.read_excel('督导课程数据_v4.xlsx')
+    from data_preprocess import get_data
+    course_file_path = '../test-algorithm/2024春开课任务.xls'
+    supervisor_file_path = '../test-algorithm/督导名单.xlsx'
+    supervisor_course_data, task_data, _ = get_data(course_file_path, supervisor_file_path)
     time_parser_supervisor = TimeParser(supervisor_course_data, '课表信息')
     time_parser_task = TimeParser(task_data, '课表信息')
     all_schedule_list_supervisor = time_parser_supervisor.parse_schedules()
     all_schedule_list_task = time_parser_task.parse_schedules()
     print(len(all_schedule_list_supervisor))
     print(len(all_schedule_list_task))
+    # 构建冲突矩阵和时间接近度矩阵
+    time_matrix = TimeMatrix(all_schedule_list_supervisor, all_schedule_list_task)
+    conflict, proximity = time_matrix.build_conflict_matrix()
+    print(conflict)
+    print(proximity)
+
