@@ -59,6 +59,14 @@ def add_course_type(data):
     data['任课教师'] = data['任课教师'].apply(lambda x: x.split(','))
     data = data.explode('任课教师')
     
+    # 处理课表信息，只保留对应教师的课表
+    data['课表信息'] = data.apply(lambda row:
+        ','.join(['{' + schedule + '}' for schedule in str(row['课表信息']).strip('{}').split('},{')
+                 if row['任课教师'] in schedule.replace('[主讲]', '')])
+        if not pd.isna(row['课表信息']) else '{}',
+        axis=1
+    )
+    
     # 根据实践学时和理论学时添加并判断课程类型
     data['课程类型'] = data.apply(lambda x: '实验' if (x['实践学时'] > 0) & (x['理论学时'] == 0 or pd.isna(x['理论学时'])) else '理论', axis=1)
     

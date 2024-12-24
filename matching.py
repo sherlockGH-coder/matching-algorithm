@@ -2,6 +2,7 @@ from ortools.linear_solver import pywraplp
 import pandas as pd
 import data_preprocess
 from parse_course_time import TimeParser, TimeMatrix
+from openpyxl.styles import Alignment
 
 
 def matching_task(course_file_path, supervisor_file_path):
@@ -111,6 +112,8 @@ def matching_task(course_file_path, supervisor_file_path):
             )
             
             output_data.loc[mask, '督导姓名'] = supervisor_name
+        # 按课程名称、课程类型、情况说明排序、督导姓名排序
+        output_data = output_data.sort_values(by=['课程名称', '课程类型', '情况说明', '督导姓名']).reset_index(drop=True)
         return output_data
 
     else:
@@ -119,11 +122,70 @@ def matching_task(course_file_path, supervisor_file_path):
         return None
 
 
+def save_to_excel(output_data, output_file):
+    # 创建ExcelWriter对象
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+        # 写入数据
+        output_data.to_excel(writer, index=False, sheet_name='Sheet1')
+        
+        # 获取工作表
+        worksheet = writer.sheets['Sheet1']
+
+        # 全部居中对齐
+        for row in worksheet.iter_rows(min_row=1, max_row=len(output_data) + 1, min_col=1, max_col=len(output_data.columns) + 1):
+            for cell in row:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+        
+        # 获取待合并的列
+        merge_columns = ['情况说明', '督导姓名']
+        
+        # 遍历需要合并的列
+        for col in merge_columns:
+            # 获取列索引
+            col_idx = output_data.columns.get_loc(col) + 1  # Excel列从1开始
+            
+            # 初始化合并起始行
+            start_row = 2  # 数据从第2行开始（第1行是表头）
+            
+            # 遍历每一行
+            for row in range(3, len(output_data) + 2):  # +2是因为有表头
+                # 获取当前行的关键字段值
+                current_row_course = worksheet.cell(row=row, column=output_data.columns.get_loc('课程名称') + 1).value
+                current_row_type = worksheet.cell(row=row, column=output_data.columns.get_loc('课程类型') + 1).value
+                
+                # 获取上一行的关键字段值
+                prev_row_course = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程名称') + 1).value
+                prev_row_type = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程类型') + 1).value
+                
+                # 检查课程名称和类型是否改变
+                values_changed = (
+                    current_row_course != prev_row_course or
+                    current_row_type != prev_row_type or
+                    row == len(output_data) + 1
+                )
+                
+                # 如果值不同或到达最后一行，执行合并
+                if values_changed:
+                    if row - start_row > 1:  # 只有当有多行相同值时才合并
+                        # 合并单元格
+                        worksheet.merge_cells(
+                            start_row=start_row,
+                            end_row=row - 1,
+                            start_column=col_idx,
+                            end_column=col_idx
+                        )
+                    start_row = row
+    
+    print(f'匹配结果已保存到{output_file}')
+
+
+
 if __name__ == "__main__":
     course_file_path = '../test-algorithm/2024春开课任务.xls'
     supervisor_file_path = '../test-algorithm/督导名单.xlsx'
     output_data = matching_task(course_file_path, supervisor_file_path)
+    
     if output_data is not None:
-        output_data.to_excel('../test-algorithm/2024春开课任务_result.xlsx', index=False)
-        print('匹配结果已保存到2024春开课任务_result.xlsx')
-
+        # 创建ExcelWriter对象
+        output_file = '../test-algorithm/2024春开课任务_结果_合并.xlsx'
+        save_to_excel(output_data, output_file)

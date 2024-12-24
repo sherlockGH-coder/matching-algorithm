@@ -234,26 +234,26 @@ class TimeMatrix:
         判断两个课表列表是否存在时间冲突。
 
         Args:
-            schedule1 (list): 第一个课表列表。
-            schedule2 (list): 第二个课表列表。
+            schedule1 (list): 第一个课表列表 (督导的课表)。
+            schedule2 (list): 第二个课表列表 (任务的课表)。
 
         Returns:
             bool: 如果存在冲突返回True，否则返回False。
 
         Note:
-            判断冲突的标准为督导的所有课表完全包含于任务的任一课表中。
+            判断冲突的标准为任务的课表时间完全包含于督导的课表时间内。
 
         Example:
             >>> matrix = TimeMatrix(supervisor_schedules, task_schedules)
             >>> matrix.schedules_conflict(supervisor_schedule, task_schedule)
             True
         """
-        for class_sup in schedule1:
-            for class_task in schedule2:
-                if class_sup['day'] == class_task['day']:
-                    if self.weeks_overlap(class_sup['weeks'], class_task['weeks']):
-                        if self.periods_overlap(class_sup['periods'], class_task['periods']):
-                            if class_sup['weeks'].issubset(class_task['weeks']) and class_sup['periods'].issubset(class_task['periods']):
+        for class_task in schedule2:
+            for class_sup in schedule1:
+                if class_task['day'] == class_sup['day']:
+                    if self.weeks_overlap(class_task['weeks'], class_sup['weeks']):
+                        if self.periods_overlap(class_task['periods'], class_sup['periods']):
+                            if class_task['weeks'].issubset(class_sup['weeks']) and class_task['periods'].issubset(class_sup['periods']):
                                 return True
         return False
     
