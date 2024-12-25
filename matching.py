@@ -127,7 +127,7 @@ def save_to_excel(output_data, output_file):
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
         # 写入数据
         output_data.to_excel(writer, index=False, sheet_name='Sheet1')
-        
+
         # 获取工作表
         worksheet = writer.sheets['Sheet1']
 
@@ -136,45 +136,54 @@ def save_to_excel(output_data, output_file):
             for cell in row:
                 cell.alignment = Alignment(horizontal='center', vertical='center')
         
-        # 获取待合并的列
-        merge_columns = ['情况说明', '督导姓名']
+        # 获取列索引
+        condition_col_idx = output_data.columns.get_loc('情况说明') + 1  # Excel列从1开始
+        supervisor_col_idx = output_data.columns.get_loc('督导姓名') + 1  # Excel列从1开始
         
-        # 遍历需要合并的列
-        for col in merge_columns:
-            # 获取列索引
-            col_idx = output_data.columns.get_loc(col) + 1  # Excel列从1开始
+        # 初始化合并起始行
+        start_row = 2  # 数据从第2行开始（第1行是表头）
+        
+        # 遍历每一行
+        for row in range(3, len(output_data) + 2):  # +2是因为有表头
+            # 获取当前行的关键字段值
+            current_row_course = worksheet.cell(row=row, column=output_data.columns.get_loc('课程名称') + 1).value
+            current_row_type = worksheet.cell(row=row, column=output_data.columns.get_loc('课程类型') + 1).value
+            current_row_condition = worksheet.cell(row=row, column=output_data.columns.get_loc('情况说明') + 1).value
+            current_row_supervisor = worksheet.cell(row=row, column=output_data.columns.get_loc('督导姓名') + 1).value
             
-            # 初始化合并起始行
-            start_row = 2  # 数据从第2行开始（第1行是表头）
+            # 获取上一行的关键字段值
+            prev_row_course = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程名称') + 1).value
+            prev_row_type = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程类型') + 1).value
+            prev_row_condition = worksheet.cell(row=row-1, column=output_data.columns.get_loc('情况说明') + 1).value
+            prev_row_supervisor = worksheet.cell(row=row-1, column=output_data.columns.get_loc('督导姓名') + 1).value
             
-            # 遍历每一行
-            for row in range(3, len(output_data) + 2):  # +2是因为有表头
-                # 获取当前行的关键字段值
-                current_row_course = worksheet.cell(row=row, column=output_data.columns.get_loc('课程名称') + 1).value
-                current_row_type = worksheet.cell(row=row, column=output_data.columns.get_loc('课程类型') + 1).value
-                
-                # 获取上一行的关键字段值
-                prev_row_course = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程名称') + 1).value
-                prev_row_type = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程类型') + 1).value
-                
-                # 检查课程名称和类型是否改变
-                values_changed = (
-                    current_row_course != prev_row_course or
-                    current_row_type != prev_row_type or
-                    row == len(output_data) + 1
-                )
-                
-                # 如果值不同或到达最后一行，执行合并
-                if values_changed:
-                    if row - start_row > 1:  # 只有当有多行相同值时才合并
-                        # 合并单元格
-                        worksheet.merge_cells(
-                            start_row=start_row,
-                            end_row=row - 1,
-                            start_column=col_idx,
-                            end_column=col_idx
-                        )
-                    start_row = row
+            # 检查课程名称和类型是否改变
+            values_changed = (
+                current_row_course != prev_row_course or
+                current_row_type != prev_row_type or
+                current_row_condition != prev_row_condition or
+                current_row_supervisor != prev_row_supervisor or
+                row == len(output_data) + 1
+            )
+            
+            # 如果值不同或到达最后一行，执行合并
+            if values_changed:
+                if row - start_row > 1:  # 只有当有多行相同值时才合并
+                    # 合并单元格
+                    worksheet.merge_cells(
+                        start_row=start_row,
+                        end_row=row - 1 if row != len(output_data) + 1 else row,
+                        start_column=condition_col_idx,
+                        end_column=condition_col_idx
+                    )
+                    # 合并单元格
+                    worksheet.merge_cells(
+                        start_row=start_row,
+                        end_row=row - 1 if row != len(output_data) + 1 else row,
+                        start_column=supervisor_col_idx,
+                        end_column=supervisor_col_idx
+                    )
+                start_row = row
     
     print(f'匹配结果已保存到{output_file}')
 

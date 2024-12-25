@@ -75,41 +75,76 @@ def add_course_type(data):
     data_experiment['课程类型'] = '实验'
     data = pd.concat([data, data_experiment])
     
+    return data
+
+
+def process_course_data(data):
     # 按课程名称和课程类型排序
     data = data.sort_values(by=['课程名称', '课程类型'])
     
-    # 添加情况说明
-    data['情况说明'] = data.apply(lambda x: '必选' if ((data['课程名称'] == x['课程名称']) & (data['课程类型'] == x['课程类型'])).sum() == 1 or (data['任课教师'] == x['任课教师']).sum() == 1 else '任选其一', axis=1)
+    # 按课程维度标记情况说明
+    data['情况说明'] = data.apply(
+        lambda x: '必选' if len(data[
+            (data['课程名称'] == x['课程名称']) & 
+            (data['课程类型'] == x['课程类型'])
+        ]) == 1 else '任选其一',
+        axis=1
+    )
+
+    # 再按任课教师维度更新情况说明
+    data.loc[data['任课教师'].map(lambda x: len(data[data['任课教师'] == x])) == 1, '情况说明'] = '必选'
     
-    # 对每个任课教师进行处理
-    teachers_to_remove = []
-    for teacher in data['任课教师'].unique():
-        # 获取该教师的所有课程
-        teacher_courses = data[data['任课教师'] == teacher]
+    # 找出所有"任选其一"的课程组
+    optional_courses = data[data['情况说明'] == '任选其一']
+    course_groups = optional_courses.groupby(['课程名称', '课程类型'])
+    
+    # 存储需要删除的记录
+    records_to_remove = []
+    
+    # 处理每个课程组
+    for (course_name, course_type), group in course_groups:
+        teachers = group['任课教师'].unique()
+        teachers_with_mandatory = []
         
-        # 如果该教师有必选课程
-        if '必选' in teacher_courses['情况说明'].values:
-            # 获取该教师的所有任选课程
-            optional_courses = teacher_courses[teacher_courses['情况说明'] == '任选其一']
+        # 检查每个教师是否有必选课程
+        for teacher in teachers:
+            has_mandatory = data[
+                (data['任课教师'] == teacher) & 
+                (data['情况说明'] == '必选')
+            ].shape[0] > 0
             
-            for _, course in optional_courses.iterrows():
-                # 查找相同课程名称和类型的其他教师的必选课程
-                same_course = data[
-                    (data['课程名称'] == course['课程名称']) & 
-                    (data['课程类型'] == course['课程类型']) & 
-                    (data['任课教师'] != teacher) & 
-                    (data['情况说明'] == '必选')
-                ]
-                
-                # 如果找到其他教师的必选课程，标记当前教师的这门课程需要删除
-                if not same_course.empty:
-                    teachers_to_remove.append((teacher, course['课程名称'], course['课程类型']))
+            if has_mandatory:
+                teachers_with_mandatory.append(teacher)
+        
+        # 如果不是所有教师都有必选课程，则处理删除逻辑
+        if teachers_with_mandatory and len(teachers_with_mandatory) < len(teachers):
+            for teacher in teachers_with_mandatory:
+                records_to_remove.append({
+                    '任课教师': teacher,
+                    '课程名称': course_name,
+                    '课程类型': course_type
+                })
     
     # 删除标记的记录
-    for teacher, course_name, course_type in teachers_to_remove:
-        data = data[~((data['任课教师'] == teacher) & 
-                     (data['课程名称'] == course_name) & 
-                     (data['课程类型'] == course_type))]
+    if records_to_remove:
+        for record in records_to_remove:
+            mask = (
+                (data['任课教师'] == record['任课教师']) & 
+                (data['课程名称'] == record['课程名称']) & 
+                (data['课程类型'] == record['课程类型'])
+            )
+            data = data[~mask]
+    
+    # 更新剩余单条记录的状态
+    course_counts = data.groupby(['课程名称', '课程类型']).size()
+    single_courses = course_counts[course_counts == 1].index
+    
+    for course_name, course_type in single_courses:
+        mask = (
+            (data['课程名称'] == course_name) & 
+            (data['课程类型'] == course_type)
+        )
+        data.loc[mask, '情况说明'] = '必选'
     
     return data
 
@@ -189,6 +224,8 @@ def get_data(course_file, supervisor_file):
     filter_data = filter_course_data(course_data)
     # 添加课程类型并处理数据
     filter_data = add_course_type(filter_data)
+    # 处理课程数据
+    filter_data = process_course_data(filter_data)
     # 获取督导课程信息
     supervisor_course_data = get_supervisor_course_data(supervisor_data, course_data)
     # 获取听课任务数据
@@ -208,8 +245,8 @@ def get_data(course_file, supervisor_file):
 if __name__ == "__main__":
     course_file_path = '../test-algorithm/2024春开课任务.xls'
     supervisor_file_path = '../test-algorithm/督导名单.xlsx'
-    supervisor_course_data, task_data, fliter_data = get_data(course_file_path, supervisor_file_path)
+    supervisor_course_data, task_data, filter_data = get_data(course_file_path, supervisor_file_path)
     print(supervisor_course_data.head(1))
     supervisor_course_data.to_excel('../test-algorithm/supervisor_course_data.xlsx', index=False)
     task_data.to_excel('../test-algorithm/task_data.xlsx', index=False)
-    
+    filter_data.to_excel('../test-algorithm/filter_data.xlsx', index=False)
