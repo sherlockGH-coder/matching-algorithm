@@ -113,7 +113,7 @@ def matching_task(course_file_path, supervisor_file_path):
             
             output_data.loc[mask, '督导姓名'] = supervisor_name
         # 按课程名称、课程类型、情况说明排序、督导姓名排序
-        output_data = output_data.sort_values(by=['课程名称', '课程类型', '情况说明', '督导姓名']).reset_index(drop=True)
+        output_data = output_data.sort_values(by=['课程名称', '课程类型', '情况说明', '督导姓名', '任课教师']).reset_index(drop=True)
         return output_data
 
     else:
@@ -139,6 +139,7 @@ def save_to_excel(output_data, output_file):
         # 获取列索引
         condition_col_idx = output_data.columns.get_loc('情况说明') + 1  # Excel列从1开始
         supervisor_col_idx = output_data.columns.get_loc('督导姓名') + 1  # Excel列从1开始
+        teacher_col_idx = output_data.columns.get_loc('任课教师') + 1  # Excel列从1开始
         
         # 初始化合并起始行
         start_row = 2  # 数据从第2行开始（第1行是表头）
@@ -150,12 +151,14 @@ def save_to_excel(output_data, output_file):
             current_row_type = worksheet.cell(row=row, column=output_data.columns.get_loc('课程类型') + 1).value
             current_row_condition = worksheet.cell(row=row, column=output_data.columns.get_loc('情况说明') + 1).value
             current_row_supervisor = worksheet.cell(row=row, column=output_data.columns.get_loc('督导姓名') + 1).value
+            current_row_teacher = worksheet.cell(row=row, column=teacher_col_idx).value
             
             # 获取上一行的关键字段值
             prev_row_course = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程名称') + 1).value
             prev_row_type = worksheet.cell(row=row-1, column=output_data.columns.get_loc('课程类型') + 1).value
             prev_row_condition = worksheet.cell(row=row-1, column=output_data.columns.get_loc('情况说明') + 1).value
             prev_row_supervisor = worksheet.cell(row=row-1, column=output_data.columns.get_loc('督导姓名') + 1).value
+            prev_row_teacher = worksheet.cell(row=row-1, column=teacher_col_idx).value
             
             # 检查课程名称和类型是否改变
             values_changed = (
@@ -163,26 +166,32 @@ def save_to_excel(output_data, output_file):
                 current_row_type != prev_row_type or
                 current_row_condition != prev_row_condition or
                 current_row_supervisor != prev_row_supervisor or
+                (current_row_condition == '在该老师这门课程中任选其一' and current_row_teacher != prev_row_teacher) or
                 row == len(output_data) + 1
             )
             
             # 如果值不同或到达最后一行，执行合并
             if values_changed:
-                if row - start_row > 1:  # 只有当有多行相同值时才合并
-                    # 合并单元格
-                    worksheet.merge_cells(
-                        start_row=start_row,
-                        end_row=row - 1 if row != len(output_data) + 1 else row,
-                        start_column=condition_col_idx,
-                        end_column=condition_col_idx
-                    )
-                    # 合并单元格
-                    worksheet.merge_cells(
-                        start_row=start_row,
-                        end_row=row - 1 if row != len(output_data) + 1 else row,
-                        start_column=supervisor_col_idx,
-                        end_column=supervisor_col_idx
-                    )
+                if row - start_row >= 1:  # 只有当有多行相同值时才合并
+                    # 获取起始行的情况说明
+                    start_row_condition = worksheet.cell(row=start_row, column=condition_col_idx).value
+                    
+                    # 只有当情况说明不是"必选"时才合并单元格
+                    if start_row_condition != '必选':
+                        # 合并单元格
+                        worksheet.merge_cells(
+                            start_row=start_row,
+                            end_row=row - 1 if row != len(output_data) + 1 else row,
+                            start_column=condition_col_idx,
+                            end_column=condition_col_idx
+                        )
+                        # 合并单元格
+                        worksheet.merge_cells(
+                            start_row=start_row,
+                            end_row=row - 1 if row != len(output_data) + 1 else row,
+                            start_column=supervisor_col_idx,
+                            end_column=supervisor_col_idx
+                        )
                 start_row = row
     
     print(f'匹配结果已保存到{output_file}')
