@@ -93,7 +93,8 @@ def process_course_data(data):
 
     # 再按任课教师维度更新情况说明
     data.loc[data['任课教师'].map(lambda x: len(data[data['任课教师'] == x])) == 1, '情况说明'] = '必选'
-    
+
+    data.sort_values(by=['课程名称', '课程类型', '任课教师'], inplace=True)
 
     # 处理有老师只教授一门课，但是却有多条记录的情况
     # 找出每个教师的所有课程记录
@@ -113,7 +114,7 @@ def process_course_data(data):
         mask = data['任课教师'] == teacher
         if data.loc[mask, '情况说明'].eq('任选其一').all():
             data.loc[mask, '情况说明'] = '在该老师这门课程中任选其一'
-
+            
     # 处理所有课程都是任选其一的老师
     # 找出所有课程都是"任选其一"的教师
     all_optional_teachers = data.groupby('任课教师').filter(
@@ -300,13 +301,11 @@ def process_course_data(data):
     # 更新剩余单条记录的情况说明
     single_records = data.groupby(['课程名称', '课程类型']).filter(lambda x: len(x) == 1)
     data.loc[single_records.index, '情况说明'] = '必选'
-
-    data.to_excel('../test-algorithm/data_preprocess.xlsx', index=False)
     
     return data
 
 
-def get_supervisor_course_data(supervisor_data, course_data):
+def get_supervisor_course_data(supervisor_data, filter_data):
     """
     获取督导课程信息。
 
@@ -323,10 +322,10 @@ def get_supervisor_course_data(supervisor_data, course_data):
         - 为没有课程的督导添加空记录
     """
     # 匹配督导姓名与课程数据
-    supervisor_course_data = course_data[course_data['任课教师'].isin(supervisor_data['姓名'])]
+    supervisor_course_data = filter_data[filter_data['任课教师'].isin(supervisor_data['姓名'])]
     # 对筛选得到的数据按"任课教师"分组，并对"开课校区"和"课表信息"列进行聚合处理，在聚合过程种，"开课校区"列的值会去重并用逗号连接，"课表信息"列的值会直接用逗号连接
     supervisor_course_data = supervisor_course_data.groupby('任课教师').agg({'开课校区': lambda x: ','.join(set(x.dropna().astype(str))), '课表信息': lambda x: ','.join(x.dropna().astype(str))}).reset_index()
-    # 函数遍历supervisor_data中的每一行，检查每个督导是否在 supervisor_course_data中。���果某个督导不在supervisor_course_data 中，函数会为该督导添加一条空记录，记录中开课校区和课表信息列为空字符串或空字典。
+    # 函数遍历supervisor_data中的每一行，检查每个督导是否在 supervisor_course_data中。如果某个督导不在supervisor_course_data 中，函数会为该督导添加一条空记录，记录中开课校区和课表信息列为空字符串或空字典。
     for index, row in supervisor_data.iterrows():
         if row['姓名'] not in supervisor_course_data['任课教师'].values:
             new_row = {'任课教师': row['姓名'], '开课校区': '', '课表信息': '{}'}

@@ -8,7 +8,7 @@ from openpyxl.styles import Alignment
 def matching_task(course_file_path, supervisor_file_path):
 
     # 加载并处理数据
-    supervisor_course_data, task_data, fliter_data = data_preprocess.get_data(course_file_path, supervisor_file_path)
+    supervisor_course_data, task_data, filter_data = data_preprocess.get_data(course_file_path, supervisor_file_path)
 
     # 解析课表信息
     time_parser_supervisor = TimeParser(supervisor_course_data, '课表信息')
@@ -71,8 +71,31 @@ def matching_task(course_file_path, supervisor_file_path):
         for j in range(num_tasks):
             proximity_score[i, j] = proximity_matrix[i][j]
     
-    # 添加目标函数：最大化匹配成功数
-    solver.Maximize(solver.Sum([x[i, j] * (campus_match[i, j] + proximity_score[i, j]) for i in range(num_supervisors) for j in range(num_tasks)]))
+    # 修改软约束：避免同一个督导匹配相同的课程
+    course_repeat_penalty = {}
+    for i in range(num_supervisors):
+        for j in range(num_tasks):
+            current_course = task_data.loc[j, '课程名称']
+            current_type = task_data.loc[j, '课程类型']
+            # 计算与当前任务相同的课程数量
+            same_courses = sum(1 for k in range(num_tasks) 
+                             if k != j and 
+                             task_data.loc[k, '课程名称'] == current_course and 
+                             task_data.loc[k, '课程类型'] == current_type)
+            # 当课程重复次数越多，惩罚值呈指数增长
+            course_repeat_penalty[i, j] = -2.0 * (2 ** same_courses)
+
+    # 调整目标函数中各项的权重
+    campus_weight = 3.0      # 增加校区匹配的权重
+    proximity_weight = 1.0    # 保持时间接近度的权重
+    repeat_weight = 2.0      # 课程重复惩罚的权重
+
+    # 修改目标函数：添加权重
+    solver.Maximize(solver.Sum([x[i, j] * (
+        campus_weight * campus_match[i, j] + 
+        proximity_weight * proximity_score[i, j] + 
+        repeat_weight * course_repeat_penalty[i, j]
+    ) for i in range(num_supervisors) for j in range(num_tasks)]))
 
     # 运行优化
     status = solver.Solve()
@@ -97,7 +120,7 @@ def matching_task(course_file_path, supervisor_file_path):
             print(f'督导 {i} 分配了 {count} 个任务')
         
         # output_data = pd.read_excel('./2024春开课任务_new_v4.xlsx')
-        output_data = fliter_data
+        output_data = filter_data
         output_data['督导姓名'] = ''
         for i, j in assignment:
             supervisor_name = supervisor_course_data.loc[i, '任课教师']
